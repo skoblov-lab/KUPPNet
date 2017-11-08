@@ -1,0 +1,1 @@
+{"batch_size": 50, "window_size": 160, "window_step": 6, "seq_maxlen": null, "threshold": 0.64}

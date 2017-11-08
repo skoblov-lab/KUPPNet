@@ -1,0 +1,7 @@
+click
+awscli
+flake8
+pyrsistent
+numpy
+fn
+keras
