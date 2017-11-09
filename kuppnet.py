@@ -1,7 +1,7 @@
 """
-to use with trained models --
-loads data, prepares input, compiles model, predicts, writes an output
-two working modes -- eval and predict
+To use with (presumably trained) models which could be loaded through keras.models.load(filepath).
+Loads data/hparams, prepares input, loads/compiles model, predicts/evaluates/trains, writes an output
+Three working modes -- eval, predict, train
 """
 import json
 
@@ -30,12 +30,12 @@ MODE_ACTION = {"eval": "",
               help='number of model to be used')
 @click.option('-h', '--hparams', default='models/hparams/default_model_hparams.json')
 @click.option('-d', '--device', help='GPU device number', default='0')
-@click.option('-o', '--output_file', type=click.File('w'), default=None)
-@click.option('-b', '--batch_size', type=int, default=None)
+@click.option('-o', '--output_file', type=click.File('w'))
+@click.option('-b', '--batch_size', type=int)
 @click.option('-M', '--prediction_output_mode', default='tsv', type=click.Choice(['tsv', 'fasta']))
-@click.option('-w', '--window_size', type=int, default=None)
-@click.option('-s', '--window_step', type=int, default=None)
-@click.option('-t', '--threshold', type=float, default=None)
+@click.option('-w', '--window_size', type=int)
+@click.option('-s', '--window_step', type=int)
+@click.option('-t', '--threshold', type=float)
 @click.option('-v', '--verbose', type=int, default=0)
 @click.pass_context
 def main(ctx, mode, input_seqs, input_cls, model, hparams,
@@ -45,6 +45,8 @@ def main(ctx, mode, input_seqs, input_cls, model, hparams,
         print('\nFollowing parameters passed:',
               *sorted(ctx.params.items(), key=lambda x: x[0]),
               '\nWorking in {} mode'.format(ctx.params['mode']), sep='\n')
+    if ctx.params['mode'] == 'eval' and ctx.params['input_cls'] is None:
+        raise ValueError('To use eval mode one must provide path to a file with true classes using input_cls option')
     with open(HPARAMS_PATHS[model]) as f:
         hparams = json.load(f)
         if verbose:

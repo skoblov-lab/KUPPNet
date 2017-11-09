@@ -7,6 +7,16 @@ _slots_supported = (sys.version_info >= (3, 6, 2) or
                     (3, 5, 3) <= sys.version_info < (3, 6))
 T = TypeVar("T")
 
+Stats = NamedTuple('stats', [
+    ('accuracy', float),
+    ('fnr', float),
+    ('fpr', float),
+    ('precision', float),
+    ('recall', float),
+    ('f1_score', float),
+    ('sensitivity', float),
+    ('specificity', float)])
+
 
 class Interval(Container, Generic[T]):
     if _slots_supported:

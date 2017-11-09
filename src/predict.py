@@ -6,7 +6,7 @@ from typing import Iterable, Optional, Mapping, Text, Union
 from numbers import Integral
 
 
-def predict_and_dump(inp: NetInput, model, hparams: Mapping, cli_params):
+def predict_and_dump(inp: NetInput, model, hparams: Mapping, cli_params, **kwargs):
     def prepare_seq(seq: Seq, pos: Iterable[int]) -> Optional[Text]:
         if not pos:
             return None

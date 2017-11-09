@@ -12,30 +12,30 @@ from src.structures import Interval, NetInput, Seq
 
 
 def prepare_input(fasta_file_handle: TextIOWrapper,
-                  hparams: Mapping, kwargs: Mapping) -> NetInput:
+                  hparams: Mapping[str, Union[str, int, float]],
+                  cli_params: Mapping[str, Union[str, int, float]]) -> NetInput:
     """
     Prepares an ready-to-use input for model.
     :param fasta_file_handle:  opened fasta file handle
     :param hparams:
-    :param kwargs:
-    3 modes:
+    :param cli_params:
+    Must contain value for 'mode' key;
+    one of 3 modes:
     1) predict -- means we do not need/know True classes
-    2) eval -- means True classes are to be in the same form as INPUT.seqs
-    (i.e. encoded sequences)
+    2) eval -- means True classes are to be in the same form as INPUT.seqs for the purpose of evaluation.
+    Network input stays the same -- hence, function's output for 'predict' and 'eval' are the same as well
     3) train -- means True classes are to be rolled over and passed
     as input in the same form as INPUT.rolled_seqs
     :return: namedtuple with all the data needed to run the model
     in any of the 3 modes specified above
     """
-    w_size = kwargs['window_size'] if kwargs['window_size'] is not None else hparams['window_size']
-    w_step = kwargs['window_step'] if kwargs['window_step'] is not None else hparams['window_step']
+    w_size = cli_params['window_size'] if cli_params['window_size'] is not None else hparams['window_size']
+    w_step = cli_params['window_step'] if cli_params['window_step'] is not None else hparams['window_step']
     seq_maxlen = hparams['seq_maxlen']
-    mode = kwargs['mode']
-    if mode == 'predict':
+    mode = cli_params['mode']
+    if mode == 'predict' or mode == 'eval':
         return NetInput(*prepare_eval(fasta_file_handle, w_size,
                                       w_step, seq_maxlen))
-    elif mode == 'eval':
-        pass
     elif mode == 'train':
         pass
     else:
