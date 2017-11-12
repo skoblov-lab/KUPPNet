@@ -7,7 +7,7 @@ import json
 
 import click
 
-from src import prepare_input, load_model, predict_and_dump
+from src import prepare_input, load_model, predict_and_dump, predict_eval_dump
 
 MODEL_PATHS = {"1": "models/ds1f1-.272",
                "2": "models/ds1f3-.278",
@@ -15,7 +15,7 @@ MODEL_PATHS = {"1": "models/ds1f1-.272",
 HPARAMS_PATHS = {"1": "models/hparams/model1.json",
                  "2": "models/hparams/model2.json",
                  "3": "models/hparams/model3.json"}
-MODE_ACTION = {"eval": "",
+MODE_ACTION = {"eval": predict_eval_dump,
                "predict": predict_and_dump,
                "train": ""}
 
@@ -26,27 +26,28 @@ MODE_ACTION = {"eval": "",
 @click.option('-c', '--input_cls',
               help=('path to a file with true classes '
                     'with id(as in input_seqs)-position pairs separated by space(s) or tab(s)'))
-@click.option('-m', '--model', type=click.Choice(["1", "2", "3"]), default="1",
+@click.option('-m', '--model', type=click.Choice(["1", "2", "3"]), default="3",
               help='number of model to be used')
-@click.option('-h', '--hparams', default='models/hparams/default_model_hparams.json')
 @click.option('-d', '--device', help='GPU device number', default='0')
 @click.option('-o', '--output_file', type=click.File('w'))
 @click.option('-b', '--batch_size', type=int)
 @click.option('-M', '--prediction_output_mode', default='tsv', type=click.Choice(['tsv', 'fasta']))
+@click.option('-E', '--eval_output_mode', default='stats_only', type=click.Choice(['full', 'stats_only', 'tsv_only']))
 @click.option('-w', '--window_size', type=int)
 @click.option('-s', '--window_step', type=int)
 @click.option('-t', '--threshold', type=float)
 @click.option('-v', '--verbose', type=int, default=0)
 @click.pass_context
-def main(ctx, mode, input_seqs, input_cls, model, hparams,
+def main(ctx, mode, input_seqs, input_cls, model,
          device, output_file, batch_size, prediction_output_mode,
-         window_size, window_step, threshold, verbose):
+         eval_output_mode, window_size, window_step, threshold, verbose):
     if verbose:
         print('\nFollowing parameters passed:',
               *sorted(ctx.params.items(), key=lambda x: x[0]),
               '\nWorking in {} mode'.format(ctx.params['mode']), sep='\n')
     if ctx.params['mode'] == 'eval' and ctx.params['input_cls'] is None:
-        raise ValueError('To use eval mode one must provide path to a file with true classes using input_cls option')
+        raise ValueError('To use eval mode one must provide path to '
+                         'a file with true classes using input_cls option')
     with open(HPARAMS_PATHS[model]) as f:
         hparams = json.load(f)
         if verbose:

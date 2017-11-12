@@ -29,7 +29,7 @@ def prepare_input(fasta_file_handle: TextIOWrapper,
     :return: namedtuple with all the data needed to run the model
     in any of the 3 modes specified above
     """
-    w_size = cli_params['window_size'] if cli_params['window_size'] is not None else hparams['window_size']
+    w_size = hparams['window_size']
     w_step = cli_params['window_step'] if cli_params['window_step'] is not None else hparams['window_step']
     seq_maxlen = hparams['seq_maxlen']
     mode = cli_params['mode']

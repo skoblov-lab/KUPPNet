@@ -3,6 +3,16 @@ KUPPNet
 
 CNN-RNN based phosphorylation site prediction tool
 
+Basic usage for predictions
+(execution from project dir is assumed)
+```
+python kuppnet.py predict data/test/test_predict/100seqsPSP.fasta -v 1
+```
+this will print out prediction to stdout.
+
+for now tested only for with GPU
+a lot more (including jupyter notebooks walkthroughs) is coming soon
+
 Project Organization
 ------------
 
@@ -53,3 +63,5 @@ Project Organization
 --------
 
 <p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
+
+

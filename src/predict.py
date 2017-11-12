@@ -1,9 +1,10 @@
-from itertools import chain, starmap, filterfalse
+from itertools import chain, filterfalse
+from numbers import Integral
+from typing import Iterable, Optional, Mapping, Text
 
 import numpy as np
+
 from src.structures import NetInput, Interval, Seq
-from typing import Iterable, Optional, Mapping, Text, Union
-from numbers import Integral
 
 
 def predict_and_dump(inp: NetInput, model, hparams: Mapping, cli_params, **kwargs):
@@ -48,7 +49,7 @@ def predict(model, inp: NetInput, window_size: Integral, batch_size: Integral = 
     """
     predictions = model.predict(
         [inp.joined, inp.masks[:, :, None], inp.negative[:, :, None]],
-        batch_size)
+        batch_size=batch_size)
     split_intervals = (len(int_) * window_size for int_ in inp.rolled_seqs)
     predictions = np.split(predictions, np.array(list(split_intervals)[1:]))
     predictions = (_merge(a, ints) for a, ints in zip(predictions, inp.rolled_seqs))

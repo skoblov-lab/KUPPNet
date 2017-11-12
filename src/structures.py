@@ -14,7 +14,6 @@ Stats = NamedTuple('stats', [
     ('precision', float),
     ('recall', float),
     ('f1_score', float),
-    ('sensitivity', float),
     ('specificity', float)])
 
 
