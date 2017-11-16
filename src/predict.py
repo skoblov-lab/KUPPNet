@@ -7,7 +7,17 @@ import numpy as np
 from src.structures import NetInput, Interval, Seq
 
 
-def predict_and_dump(inp: NetInput, model, hparams: Mapping, cli_params, **kwargs):
+def predict_and_dump(inp: NetInput, model: "keras model", hparams: Mapping, cli_params: Mapping):
+    """
+    Higher-order function which uses "predict" function,
+    extracts valid predictions and then dumps them into
+    cli_params['output_file'] (if it's None will print to stdout)
+    :param inp: NetInput with joined sequences, negatives and masks
+    :param model: compiled model to be used for predictions
+    :param hparams: default parameters for compiled model
+    :param cli_params: parameters provided through CLI interface
+    :return:
+    """
     def prepare_seq(seq: Seq, pos: Iterable[int]) -> Optional[Text]:
         if not pos:
             return None

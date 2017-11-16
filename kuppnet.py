@@ -7,7 +7,7 @@ import json
 
 import click
 
-from src import prepare_input, load_model, predict_and_dump, predict_eval_dump
+from src import prepare_input, load_model, predict_and_dump, eval_and_dump
 
 MODEL_PATHS = {"1": "models/ds1f1-.272",
                "2": "models/ds1f3-.278",
@@ -15,7 +15,7 @@ MODEL_PATHS = {"1": "models/ds1f1-.272",
 HPARAMS_PATHS = {"1": "models/hparams/model1.json",
                  "2": "models/hparams/model2.json",
                  "3": "models/hparams/model3.json"}
-MODE_ACTION = {"eval": predict_eval_dump,
+MODE_ACTION = {"eval": eval_and_dump,
                "predict": predict_and_dump,
                "train": ""}
 
@@ -41,6 +41,7 @@ MODE_ACTION = {"eval": predict_eval_dump,
 def main(ctx, mode, input_seqs, input_cls, model,
          device, output_file, batch_size, prediction_output_mode,
          eval_output_mode, window_size, window_step, threshold, verbose):
+    ctx.params['input_seqs'] = input_seqs
     if verbose:
         print('\nFollowing parameters passed:',
               *sorted(ctx.params.items(), key=lambda x: x[0]),
@@ -55,7 +56,7 @@ def main(ctx, mode, input_seqs, input_cls, model,
                   *sorted(hparams.items(), key=lambda x: x[0]), sep='\n')
     with open(input_seqs) as inp_seqs_handle:
         inp = prepare_input(inp_seqs_handle, hparams, ctx.params)
-    compiled_model = load_model(MODEL_PATHS[model], hparams, device)
+    compiled_model = load_model(MODEL_PATHS[model], hparams, device) if ctx.params['predicted'] is not None else None
     if verbose:
         print('\nModel has been compiled.\n', compiled_model.summary(), sep='\n')
     action = MODE_ACTION[mode]

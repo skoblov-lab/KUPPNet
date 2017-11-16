@@ -1,49 +1,125 @@
-from functools import partial
-from itertools import starmap, groupby
-from typing import Iterable, Mapping, Union, Text, List, Dict
+from itertools import groupby, starmap, chain
+from typing import Iterable, Mapping, Union, Generator, Tuple, Optional
 
 import numpy as np
 from fn import F
+from functools import partial
+from io import TextIOWrapper
 
-from src.structures import NetInput, Stats
 from src.predict import predict
+from src.structures import NetInput, Stats, Site
 
 
-def predict_eval_dump(model,
-                      inp: NetInput,
-                      hparams: Mapping[str, Union[str, int, float]],
-                      cli_params: Mapping[str, Union[str, int, float]]):
+# TODO: test eval mode
+
+
+def eval_and_dump(model: Optional,
+                  predictions: Optional[Union[Iterable[np.ndarray]], Iterable[str]],
+                  inp: NetInput,
+                  hparams: Mapping[str, Union[str, int, float, TextIOWrapper]],
+                  cli_params: Mapping[str, Union[str, int, float, TextIOWrapper]]) -> None:
+    # TODO: docs
+    """
+
+    :param model:
+    :param predictions:
+    :param inp:
+    :param hparams:
+    :param cli_params:
+    :return:
+    """
+    stats, sites = evaluate(model, predictions, inp, hparams, cli_params)
+    dump(cli_params, stats, sites)
+
+
+def evaluate(model: Optional,
+             predictions: Optional[Union[Iterable[np.ndarray]], Iterable[str]],
+             inp: NetInput,
+             hparams: Mapping[str, Union[str, int, float, TextIOWrapper]],
+             cli_params: Mapping[str, Union[str, int, float, TextIOWrapper]]) \
+        -> Tuple[Optional[Stats], Optional[Iterable[Site]]]:
+    # TODO: docs
+    """
+
+    :param model:
+    :param predictions:
+    :param inp:
+    :param hparams:
+    :param cli_params:
+    :return:
+    """
     bs = cli_params['batch_size'] if cli_params['batch_size'] is not None else hparams['batch_size']
     ws = hparams['window_size']
-    predictions = list(predict(model, inp, batch_size=bs, window_size=ws))
-    eval_and_dump(predictions, inp, hparams, cli_params)
-
-
-def eval_and_dump(predictions: Iterable[np.ndarray],
-                  inp: NetInput,
-                  hparams: Mapping[str, Union[str, int, float]],
-                  cli_params: Mapping[str, Union[str, int, float]]):
     ts = cli_params['threshold'] if cli_params['threshold'] is not None else hparams['threshold']
     mode = cli_params['eval_output_mode']
 
-    def dump_stats():
-        stats = evaluate(predictions, inp, hparams, cli_params, ts)
-        print("Model {} results for sequences in {} and true classes in {}".format(
-            cli_params['model'], cli_params['input_seqs'], cli_params['input_cls']))
-        print(stats, file=cli_params['output_file'])
+    if model is None:
+        if isinstance(predictions, Iterable[str]):
+            predictions = parse_cls(predictions)
+        else:
+            predictions = zip(inp.ids, predictions)
+    else:
+        predictions = zip(inp.ids, predict(model, inp, batch_size=bs, window_size=ws))
+    true_cls = map_onto_pos(inp=inp, classes=parse_cls(cli_params['input_cls']))
+
+    y_true = [x[y > 0] for (_, x), y in zip(true_cls, inp.negative)]
+    y_pred = [x[y > 0] for (_, x), y in zip(predictions, inp.negative)]
+
+    stats = (compute_stats(y_true=np.concatenate(y_true), y_pred=np.concatenate(y_pred), ts=ts)
+             if mode == 'full' or mode == 'stats_only' else None)
+    sites = compile_sites(inp, y_true, y_pred) if mode == 'full' or mode == 'tsv_only' else None
+    return stats, sites
+
+
+def compile_sites(inp, y_true, y_pred):
+    # TODO: docs
+    """
+
+    :param inp:
+    :param y_true:
+    :param y_pred:
+    :return:
+    """
+    positions = (np.where(y > 0)[0] for y in inp.negative)
+
+    def comp_site(id_, cls_true, cls_pred, pos):
+        site = [id_, pos, 0, 0]
+        if cls_pred:
+            site[2] = 1
+        if cls_true:
+            site[3] = 1
+        return Site(*site)
+
+    sites = chain.from_iterable(
+        ((id_, pos, p, t) for pos, p, t in zip(pp, yp, yt))
+        for id_, pp, yp, yt in zip(inp.ids, positions, y_pred, y_true))
+    return starmap(comp_site, sites)
+
+
+def dump(cli_params: Mapping[str, Union[str, int, float, TextIOWrapper]],
+         stats: Optional[Stats],
+         sites: Iterable[Site]):
+    # TODO: docs
+    """
+
+    :param cli_params:
+    :param stats:
+    :param sites:
+    :return:
+    """
+    mode = cli_params['eval_output_mode']
 
     def dump_tsv():
-        # TODO: find a better structure for pred_true pairs
-        pred_positions = map(lambda x: zip(np.where(x > ts)[0], x[x > ts]), predictions)
-        y_pred = ((id_, ((pos, cls) for pos, cls in pos_cls)) for id_, pos_cls in zip(inp.ids, pred_positions))
-        y_true = parse_true_cls(cli_params['input_cls'], ids_ord={x: i for i, x in enumerate(inp.ids)})
-        print("id", "pos", "prob", "true_class", "prediction", sep='\t', file=cli_params['output_file'])
-        for id_, pos in y_pred:
-            for p, s in pos:
-                if id_ in y_true and p in y_true[id_]:
-                    print(id_, p, s, 1, 1, file=cli_params['output_file'], sep='\t')
-                else:
-                    print(id_, p, s, 0, 1, file=cli_params['output_file'], sep='\t')
+        for site in sites:
+            print(*site, sep='\t', file=cli_params['output_file'])
+
+    def dump_stats():
+        print(stats, file=cli_params['output_file'])
+
+    print('KUPPNet model {} evaluation.\nSites are taken from {}\nSeqs are taken from {}'.format(
+        cli_params['model'],
+        cli_params['input_cls'],
+        cli_params['input_seqs']))
 
     if mode == 'stats_only':
         dump_stats()
@@ -51,48 +127,47 @@ def eval_and_dump(predictions: Iterable[np.ndarray],
         dump_tsv()
     else:
         dump_stats()
-        print('#' * 10, file=cli_params['output_file'])
+        print('#' * 15, file=cli_params['output_file'])
         dump_tsv()
 
 
-def evaluate(predictions: Iterable[np.ndarray],
-             inp: NetInput,
-             hparams: Mapping[str, Union[str, int, float]],
-             cli_params: Mapping[str, Union[str, int, float]],
-             threshold: float):
+def map_onto_pos(inp: NetInput,
+                 classes: Generator[Tuple[str, np.ndarray], None, None],
+                 offset: int = 0):
+    # TODO: docs
+    """
+
+    :param inp:
+    :param classes:
+    :param offset:
+    :return:
+    """
     ids_ord = {x: i for i, x in enumerate(inp.ids)}
-    groups = parse_true_cls(cli_params['input_cls'], ids_ord)
-    y_true = [np.zeros(shape=x.shape) for x in predictions]
-    for seq_ord, cls_pos in groups.items():
-        y_true[seq_ord][cls_pos] = 1
-    y_true, y_pred = map(
-        np.concatenate,
-        [y_true, predictions])
-    assert len(y_true) == len(y_pred)
-    return compute_stats(y_true, y_pred, threshold)
+    template = np.zeros(shape=inp.joined.shape)
+    for id_, positions in classes:
+        template[ids_ord[id_]][positions - offset] = 1
+    return template
 
 
-def parse_true_cls(file_path: Text, ids_ord) -> Dict[int, np.ndarray]:
-    process_lines = (F(map, lambda x: x.strip().split())
-                     >> (map, lambda x: (x[0], int(x[1])))
-                     # >> F(sorted, key=lambda x: ids_ord[x[0]])
-                     >> (partial(groupby, key=lambda x: x[0]))
-                     >> (map, lambda x: (ids_ord[x[0]], x[1])))
-    with open(file_path) as f:
-        grouped_cls = {g: np.array(list(x for _, x in gg), dtype=np.int32) for g, gg in process_lines(f)}
-    return grouped_cls
-
-
-def cls_to_array(cls: Iterable[int], array: np.ndarray):
-    cls_array = np.zeros(shape=array.shape)
-    cls_array[np.array(list(cls))] = 1
-    return cls_array
+def parse_cls(id_cls_pairs: Iterable[str]) \
+        -> Generator[Tuple[str, np.ndarray]]:
+    """
+    Parses classes provided either by means of str with id-pos pairs
+    separated by " "-like symbol
+    or id-Iterable pairs (id and all true classes for this id)
+    :param id_cls_pairs:
+    :return: Generator yielding tuple with ids and Generator with positions of true classes
+    """
+    parse_lines = (F(map, lambda x: x.strip().split())
+                   >> (map, lambda x: (x[0], int(x[1])))
+                   >> (partial(groupby, key=lambda x: x[0])))
+    return ((g, np.ndarray([x for _, x in gg])) for g, gg in parse_lines(id_cls_pairs))
 
 
 def compute_stats(y_true: np.ndarray, y_pred: np.ndarray, ts: float = None) \
         -> Stats:
+    # TODO: docs
     """
-
     :param y_true:
     :param y_pred:
     :param ts:

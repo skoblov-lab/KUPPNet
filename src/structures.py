@@ -17,6 +17,13 @@ Stats = NamedTuple('stats', [
     ('specificity', float)])
 
 
+Site = NamedTuple('site', [
+    ('id', str),
+    ('pos', int),
+    ('pred', int),
+    ('true', int)])
+
+
 class Interval(Container, Generic[T]):
     if _slots_supported:
         __slots__ = ("start", "stop", "data")
