@@ -3,6 +3,7 @@ from numbers import Integral
 from typing import Iterable, Optional, Mapping, Text
 
 import numpy as np
+from functools import reduce
 
 from src.structures import NetInput, Interval, Seq
 
@@ -18,6 +19,7 @@ def predict_and_dump(inp: NetInput, model: "keras model", hparams: Mapping, cli_
     :param cli_params: parameters provided through CLI interface
     :return:
     """
+
     def prepare_seq(seq: Seq, pos: Iterable[int]) -> Optional[Text]:
         if not pos:
             return None
@@ -28,14 +30,17 @@ def predict_and_dump(inp: NetInput, model: "keras model", hparams: Mapping, cli_
 
     def prepare(to_dump):
         if cli_params['prediction_output_mode'] == 'tsv':
-            return chain.from_iterable(("\t".join([id_, str(n + 1)]) for n in pos) for id_, _, pos in to_dump)
-        seqs = filterfalse(lambda x: x is None, ((id_, prepare_seq(seq, pos)) for id_, seq, pos in to_dump))
+            return chain.from_iterable(
+                ("\t".join([id_, str(n + 1), str(s)]) for n, s in zip(pos, sc)) for id_, _, pos, sc in to_dump)
+        seqs = filterfalse(lambda x: x[1] is None, ((id_, prepare_seq(seq, pos)) for id_, seq, pos, _ in to_dump))
         return ('\n'.join(('>' + id_, seq)) for id_, seq in seqs)
 
     ts = cli_params['threshold'] if cli_params['threshold'] is not None else hparams['threshold']
     bs = cli_params['batch_size'] if cli_params['batch_size'] is not None else hparams['batch_size']
     predictions = predict(model, inp, hparams['window_size'], batch_size=bs)
-    valid_predictions = zip(inp.ids, inp.seqs, (np.where(p >= ts)[0] for p in predictions))
+    valid_predictions = zip(inp.ids, inp.seqs,
+                            (np.where(p >= ts)[0] for p in predictions),
+                            (p[p >= ts] for p in predictions))
     prepared = filterfalse(lambda x: x is None, prepare(valid_predictions))
     for line in prepared:
         print(line, file=cli_params['output_file'])
@@ -57,11 +62,17 @@ def predict(model, inp: NetInput, window_size: Integral, batch_size: Integral = 
     :param batch_size:
     :return:
     """
+
+    def acc_len(current, to_add):
+        return current + [current[-1] + len(to_add)]
+
+    split_intervals = reduce(acc_len, inp.rolled_seqs[1:], [len(inp.rolled_seqs[0])])
+
     predictions = model.predict(
         [inp.joined, inp.masks[:, :, None], inp.negative[:, :, None]],
         batch_size=batch_size)
-    split_intervals = (len(int_) * window_size for int_ in inp.rolled_seqs)
-    predictions = np.split(predictions, np.array(list(split_intervals)[1:]))
+
+    predictions = np.split(predictions, np.array(split_intervals)[:-1])
     predictions = (_merge(a, ints) for a, ints in zip(predictions, inp.rolled_seqs))
     return predictions
 
