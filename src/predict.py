@@ -1,4 +1,4 @@
-from itertools import chain, filterfalse
+from itertools import chain, filterfalse, tee
 from numbers import Integral
 from typing import Iterable, Optional, Mapping, Text
 
@@ -37,10 +37,10 @@ def predict_and_dump(inp: NetInput, model: "keras model", hparams: Mapping, cli_
 
     ts = cli_params['threshold'] if cli_params['threshold'] is not None else hparams['threshold']
     bs = cli_params['batch_size'] if cli_params['batch_size'] is not None else hparams['batch_size']
-    predictions = predict(model, inp, hparams['window_size'], batch_size=bs)
+    predictions1, predictions2 = tee(predict(model, inp, hparams['window_size'], batch_size=bs))
     valid_predictions = zip(inp.ids, inp.seqs,
-                            (np.where(p >= ts)[0] for p in predictions),
-                            (p[p >= ts] for p in predictions))
+                            (np.where(p >= ts)[0] for p in predictions1),
+                            (p[p >= ts] for p in predictions2))
     prepared = filterfalse(lambda x: x is None, prepare(valid_predictions))
     for line in prepared:
         print(line, file=cli_params['output_file'])
