@@ -1,67 +1,27 @@
 KUPPNet
 ==============================
 
-CNN-RNN based phosphorylation site prediction tool
+KUPPNet (Kinase Unspecific Phosphosites' Prediction Net) is CNN-RNN
+based phosphorylation site prediction tool.
 
-Basic usage for predictions
-(execution from project dir is assumed)
-```
-python kuppnet.py predict data/test/test_predict/100seqsPSP.fasta -v 1
-```
-this will print out prediction to stdout.
+For now, it's available in two modes:
 
-for now tested only for with GPU
-a lot more (including jupyter notebooks walkthroughs) is coming soon
+1) *predict*.
+basic usage example
+```python kuppnet.py predict path/to/fasta/file```
+2) *eval*.
+basic usage example
+```python kuppnet.py eval path/to/fasta/file -input_cls path/to/true/classes```
+where the `path/to/true/classes` is a path to tsv-like file with
+id-true_positive_class position pairs.
 
-Project Organization
-------------
+For prediction one of 3 models are used, trained on separate data sets.
+Default model is model №3.
 
-    ├── LICENSE
-    ├── README.md          <- The top-level README for developers using this project.
-    ├── data
-    │   ├── interim        <- Intermediate data that has been transformed.
-    │   ├── processed      <- The final, canonical data sets for modeling.
-    │   ├── raw            <- The original, immutable data dump.
-    │   └── test           <- Data for testing
-    │
-    ├── docs               <- A default Sphinx project; see sphinx-doc.org for details
-    │
-    ├── models             <- Trained and serialized models, model predictions, or model summaries
-    │   └── hparams        <- Hyperparameters (separate for every model)
-    │
-    ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-    │                         the creator's initials, and a short `-` delimited description, e.g.
-    │                         `1.0-jqp-initial-data-exploration`.
-    │
-    ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
-    │
-    ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
-    │   └── figures        <- Generated graphics and figures to be used in reporting
-    │
-    ├── requirements.txt   <- The requirements file for reproducing the analysis environment, e.g.
-    │                         generated with `pip freeze > requirements.txt`
-    │
-    ├── src                <- Source code for use in this project.
-    │   ├── __init__.py    <- Makes src a Python module
-    │   │
-    │   ├── load_model.py
-    │   │  
-    │   │
-    │   ├── metrics.py
-    │   │  
-    │   │
-    │   ├── predict.py
-    │   │
-    │   │  
-    │   │── prepare_input.py
-    │   │
-    │   │── structures.py
-    │   │
-    │   │── utils.py
+Article with description of models' architectures and data sets is
+submitted.
 
+More information about main script usage can be obtained using
+`python3 kuppnet.py --help` command.
 
---------
-
-<p><small>Project based on the <a target="_blank" href="https://drivendata.github.io/cookiecutter-data-science/">cookiecutter data science project template</a>. #cookiecutterdatascience</small></p>
-
-
+If you have any questions, feel free to ask (edikedikedikedik@gmail.com).
