@@ -1,8 +1,3 @@
-"""
-To use with (presumably trained) models which could be loaded through keras.models.load(filepath).
-Loads data/hparams, prepares input, loads/compiles model, predicts/evaluates/trains, writes an output
-Three working modes -- eval, predict, train
-"""
 import json
 
 import click
@@ -23,10 +18,7 @@ MODE_ACTION = {"eval": eval_and_dump,
 @click.command()
 @click.argument('mode', type=click.Choice(['eval', 'train', 'predict']))
 @click.argument('input_seqs')
-@click.option('-c', '--input_cls',
-              help=('path to a file with true classes '
-                    'with id(as in input_seqs)-position pairs separated by space(s) or tab(s)'),
-              type=click.File())
+@click.option('-c', '--input_cls', type=click.File())
 @click.option('-p', '--predictions', type=click.File('r'))
 @click.option('-m', '--model', type=click.Choice(["1", "2", "3"]), default="3",
               help='number of model to be used')
@@ -43,32 +35,71 @@ MODE_ACTION = {"eval": eval_and_dump,
 def main(ctx, mode, input_seqs, input_cls, predictions, model,
          device, output_file, batch_size, prediction_output_mode,
          eval_output_mode, window_size, window_step, threshold, verbose):
+    # TODO: update docs when train is finished
+    # TODO: add models' descriptions
     """
     This is the main scrip to launch KUPPNet (Kinase Unspecific Phosphorylation Prediction Net).
 
-    Three modes are available -- eval, predict and train (unfinished).
+    Three modes are available -- eval, predict and train (the last is unfinished).
 
     Tool uses TensorFlow library with Keras backend.
 
-    Three pre-trained model are available, default is model №3, since it has shown the best
-    results in terms of F1-score.
+    Three pre-trained model are available, default is model №3.
 
-    :param ctx:
+    :param ctx: click context (for CLI arguments).
+    Passed by default.
     :param mode:
+    Script overall behaviour is completely dependent on which mode one chooses.
+    One of three modes are available:
+    1) predict
+    Predicts phosphorylation sites using one of 3 models.
+    Dumps output.
+    2) eval
+    Evaluates model's performance and dumps output.
+    3) train
+    TO BE COMPLETED
     :param input_seqs:
+    Path to a file in fasta-like format with protein sequences.
     :param input_cls:
+    Path to a file with id-true_positive_class_position pairs
+    separated by space-like symbols.
     :param predictions:
-    :param model:
-    :param device:
-    :param output_file:
-    :param batch_size:
-    :param prediction_output_mode:
-    :param eval_output_mode:
-    :param window_size:
-    :param window_step:
-    :param threshold:
-    :param verbose:
-    :return:
+    Path to a file with id-predicted_positive_class_position-score triples
+    separated by space-like symbols.
+    If provided in eval mode, no model will be compiled.
+    :param model: number of model to be used.
+    Three models are available:
+    1)
+    2)
+    3)
+    :param device: device to be used for computations.
+    :param output_file: output will be dumped to a file
+    specified by this param.
+    If no file path is passed, output will be printed to stdout.
+    :param batch_size: if not provided, keras default batch_size = 32
+    will be used.
+    :param prediction_output_mode: one tsv or fasta.
+    If case of tsv id-predicted positive class pairs
+    will be printed.
+    In case of fasta predicted positive classes
+    will be marked by lower-case letters
+    :param eval_output_mode: one of
+    1) tsv_only
+    Tab-separated id, position, true value, predicted value
+    will be printed for all potentially positive classes.
+    1 means positive class, 0 means negative.
+    2) stats_only
+    Will calculate and print out accuracy, fnr, fpr, precision, recall, f1 and specificity.
+    3) full
+    Combination of 1 and 2.
+    :param window_size: For rolling_window function.
+    Since all models have their all requirements for input shape,
+    leave default for predict and eval modes
+    :param window_step: Unlike window_size can be safely overwritten.
+    Determines window step to be used in rolling_window function
+    :param threshold: value in (0, 1).
+    :param verbose: 0 or 1. If 1 is provided all parameters will be printed
+    to stdout.
     """
     ctx.params['input_seqs'] = input_seqs
     if verbose:
