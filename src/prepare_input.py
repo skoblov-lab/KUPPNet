@@ -23,7 +23,8 @@ def prepare_input(fasta_file_handle: TextIOWrapper,
     one of 3 modes:
     1) predict -- means we do not need/know True classes
     2) eval -- means True classes are to be in the same form as INPUT.seqs for the purpose of evaluation.
-    Network input stays the same -- hence, function's output for 'predict' and 'eval' are the same as well
+    Network input stays the same (since True classes are meant to be provided using separate file)
+    -- hence, function's output for 'predict' and 'eval' are the same as well
     3) train -- means True classes are to be rolled over and passed
     as input in the same form as INPUT.rolled_seqs
     :return: namedtuple with all the data needed to run the model

@@ -1,9 +1,7 @@
 from itertools import groupby, starmap, chain
-from typing import Iterable, Mapping, Union, Generator, Tuple, Optional
+from typing import Iterable, Mapping, Union, Generator, Tuple, Optional, Sequence, MutableSequence
 
 import numpy as np
-from fn import F
-from functools import partial
 from io import TextIOWrapper
 
 from src.predict import predict
@@ -14,26 +12,25 @@ from src.structures import NetInput, Stats, Site
 
 
 def eval_and_dump(model: Optional,
-                  predictions: Optional[Union[Iterable[np.ndarray]], Iterable[str]],
                   inp: NetInput,
                   hparams: Mapping[str, Union[str, int, float, TextIOWrapper]],
-                  cli_params: Mapping[str, Union[str, int, float, TextIOWrapper]]) -> None:
+                  cli_params: Mapping[str, Union[str, int, float, TextIOWrapper]]) \
+        -> None:
     # TODO: docs
     """
 
     :param model:
-    :param predictions:
     :param inp:
     :param hparams:
     :param cli_params:
     :return:
     """
-    stats, sites = evaluate(model, predictions, inp, hparams, cli_params)
+    stats, sites = evaluate(model, cli_params['predictions'], inp, hparams, cli_params)
     dump(cli_params, stats, sites)
 
 
 def evaluate(model: Optional,
-             predictions: Optional[Union[Iterable[np.ndarray]], Iterable[str]],
+             predictions: Optional[Union[Iterable[np.ndarray], TextIOWrapper]],
              inp: NetInput,
              hparams: Mapping[str, Union[str, int, float, TextIOWrapper]],
              cli_params: Mapping[str, Union[str, int, float, TextIOWrapper]]) \
@@ -49,25 +46,32 @@ def evaluate(model: Optional,
     :return:
     """
     bs = cli_params['batch_size'] if cli_params['batch_size'] is not None else hparams['batch_size']
-    ws = hparams['window_size']
     ts = cli_params['threshold'] if cli_params['threshold'] is not None else hparams['threshold']
     mode = cli_params['eval_output_mode']
 
+    templates = [np.zeros(shape=(len(x.data.raw),)) for x in inp.seqs]
+    templates_bool = [t.astype(bool) for t in templates]
+    for e, s in enumerate(inp.seqs):
+        for i in (16, 17, 20):
+            templates_bool[e][s.data.encoded == i] = True
+
     if model is None:
-        if isinstance(predictions, Iterable[str]):
-            predictions = parse_cls(predictions)
+        offset = 1
+        if isinstance(predictions, TextIOWrapper):
+            pred = parse_cls(predictions, ts)
         else:
-            predictions = zip(inp.ids, predictions)
+            pred = zip(inp.ids, predictions)
     else:
-        predictions = zip(inp.ids, predict(model, inp, batch_size=bs, window_size=ws))
-    true_cls = map_onto_pos(inp=inp, classes=parse_cls(cli_params['input_cls']))
-
-    y_true = [x[y > 0] for (_, x), y in zip(true_cls, inp.negative)]
-    y_pred = [x[y > 0] for (_, x), y in zip(predictions, inp.negative)]
-
-    stats = (compute_stats(y_true=np.concatenate(y_true), y_pred=np.concatenate(y_pred), ts=ts)
+        offset = 0
+        pred = zip(inp.ids, (np.where(p > ts)[0] for p in predict(model, inp, batch_size=bs)))
+    ids_ord = {x: i for i, x in enumerate(inp.ids)}
+    pred = map_onto_pos(ids_ord=ids_ord, templates=templates, masks=templates_bool,
+                        classes=pred, offset=offset)
+    true_cls = map_onto_pos(ids_ord=ids_ord, templates=templates, masks=templates_bool,
+                            classes=parse_cls(cli_params['input_cls']))
+    stats = (compute_stats(y_true=np.concatenate(true_cls), y_pred=np.concatenate(pred))
              if mode == 'full' or mode == 'stats_only' else None)
-    sites = compile_sites(inp, y_true, y_pred) if mode == 'full' or mode == 'tsv_only' else None
+    sites = compile_sites(inp, true_cls, pred) if mode == 'full' or mode == 'tsv_only' else None
     return stats, sites
 
 
@@ -80,9 +84,9 @@ def compile_sites(inp, y_true, y_pred):
     :param y_pred:
     :return:
     """
-    positions = (np.where(y > 0)[0] for y in inp.negative)
+    positions = (np.where(y > 0)[0] + 1 for y in inp.negative)
 
-    def comp_site(id_, cls_true, cls_pred, pos):
+    def comp_site(id_, pos, cls_pred, cls_true):
         site = [id_, pos, 0, 0]
         if cls_pred:
             site[2] = 1
@@ -131,37 +135,45 @@ def dump(cli_params: Mapping[str, Union[str, int, float, TextIOWrapper]],
         dump_tsv()
 
 
-def map_onto_pos(inp: NetInput,
+def map_onto_pos(ids_ord: Mapping[str, int],
                  classes: Generator[Tuple[str, np.ndarray], None, None],
-                 offset: int = 0):
+                 templates: MutableSequence[np.ndarray],
+                 masks: Sequence[np.ndarray],
+                 offset: int = 1):
     # TODO: docs
     """
 
-    :param inp:
+    :param ids_ord:
     :param classes:
+    :param templates:
+    :param masks:
     :param offset:
     :return:
     """
-    ids_ord = {x: i for i, x in enumerate(inp.ids)}
-    template = np.zeros(shape=inp.joined.shape)
+    templates_cp = [a.copy() for a in templates]
     for id_, positions in classes:
-        template[ids_ord[id_]][positions - offset] = 1
-    return template
+        pos = ids_ord[id_]
+        templates_cp[pos][positions - offset] = 1
+    for i, temp in enumerate(templates_cp):
+        templates_cp[i] = templates_cp[i][masks[i]]
+    return templates_cp
 
 
-def parse_cls(id_cls_pairs: Iterable[str]) \
-        -> Generator[Tuple[str, np.ndarray]]:
+def parse_cls(id_cls_pairs: Iterable[str], ts: int = None) \
+        -> Generator[Tuple[str, np.ndarray], None, None]:
     """
     Parses classes provided either by means of str with id-pos pairs
     separated by " "-like symbol
     or id-Iterable pairs (id and all true classes for this id)
     :param id_cls_pairs:
-    :return: Generator yielding tuple with ids and Generator with positions of true classes
+    :param ts:
+    :return: Generator yielding tuple with ids and AA positions of true positive classes
     """
-    parse_lines = (F(map, lambda x: x.strip().split())
-                   >> (map, lambda x: (x[0], int(x[1])))
-                   >> (partial(groupby, key=lambda x: x[0])))
-    return ((g, np.ndarray([x for _, x in gg])) for g, gg in parse_lines(id_cls_pairs))
+    lines = map(lambda x: x.strip().split(), id_cls_pairs)
+    lines = (filter(lambda x: x[2] >= ts, map(lambda x: (x[0], int(x[1]), float(x[2])), lines)) if ts
+             else map(lambda x: (x[0], int(x[1])), lines))
+    lines = groupby(lines, lambda x: x[0])
+    return ((g, np.array([x[1] for x in gg])) for g, gg in lines)
 
 
 def compute_stats(y_true: np.ndarray, y_pred: np.ndarray, ts: float = None) \
@@ -173,15 +185,14 @@ def compute_stats(y_true: np.ndarray, y_pred: np.ndarray, ts: float = None) \
     :param ts:
     :return:
     """
-    labels_true = y_true.copy().astype(np.int32)
     if ts:
         labels_pred = np.zeros(shape=y_pred.shape, dtype=np.int32)
         labels_pred[y_pred >= ts] = 1
     else:
         labels_pred = y_pred.round()
 
-    negative_true = np.equal(labels_true, 0).astype(np.float32)
-    positive_true = np.equal(labels_true, 1).astype(np.float32)
+    negative_true = np.equal(y_true, 0).astype(np.float32)
+    positive_true = np.equal(y_true, 1).astype(np.float32)
     negative_pred = np.equal(labels_pred, 0).astype(np.float32)
     positive_pred = np.equal(labels_pred, 1).astype(np.float32)
 
