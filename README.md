@@ -11,9 +11,9 @@ basic usage example
 ```python kuppnet.py predict path/to/fasta/file```
 2) *eval*.
 basic usage example
-```python kuppnet.py eval path/to/fasta/file -input_cls path/to/true/classes```
+```python kuppnet.py eval path/to/fasta/file --input_cls path/to/true/classes```
 where the `path/to/true/classes` is a path to tsv-like file with
-id-true_positive_class position pairs.
+id--true_positive_class_position pairs.
 
 For prediction one of 3 models are used, trained on separate data sets.
 Default model is model №3.
