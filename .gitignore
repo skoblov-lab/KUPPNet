@@ -159,3 +159,7 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# project local dirs
+models/
+data/
